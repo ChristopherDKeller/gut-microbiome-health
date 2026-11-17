@@ -1,14 +1,17 @@
 import duckdb
 import pandas as pd
 
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import RepeatedStratifiedKFold
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import make_pipeline
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
-    classification_report,
+    accuracy_score,
+    precision_score,
+    recall_score,
+    f1_score,
     roc_auc_score,
     average_precision_score,
 )
@@ -68,21 +71,21 @@ X_num = clean_numeric_values(df[NUMERIC_FEATURES])
 X = pd.concat([X_cat, X_num], axis=1)
 y = df["y"]
 
+print(f"Number of samples: {X.shape[0]}")
 print(f"Number of features: {X.shape[1]}")
 
+
 # --------------------------------------------------
-# 3. Train / test split
+# 3. Repeated stratified cross-validation
 # --------------------------------------------------
 
-# DECISION: 20 % test data.
-# DECISION: Stratification preserves the class proportions.
-# DECISION: Random state 42 for reproducibility.
-X_train, X_test, y_train, y_test = train_test_split(
-    X,
-    y,
-    test_size=0.2,
+# DECISION: 5 folds, repeated 3 times (15 evaluation runs).
+# DECISION: Stratification preserves the class proportions in each fold.
+# DECISION: Fixed random state for reproducibility.
+cv = RepeatedStratifiedKFold(
+    n_splits=5,
+    n_repeats=3,
     random_state=42,
-    stratify=y,
 )
 
 
@@ -92,7 +95,9 @@ X_train, X_test, y_train, y_test = train_test_split(
 
 # DECISION: Replace missing categorical values with the most frequent value.
 # DECISION: One-hot encode categorical features.
-# DECISION: Ignore categories that only occur in the test set.
+# DECISION: Ignore categories that only occur in the test fold.
+# DECISION: Replace missing numerical values with the median.
+# DECISION: Standardize numerical features.
 preprocessor = ColumnTransformer(
     transformers=[
         (
@@ -117,7 +122,7 @@ preprocessor = ColumnTransformer(
 
 
 # --------------------------------------------------
-# 5. Train logistic regression
+# 5. Model and evaluation
 # --------------------------------------------------
 
 # DECISION: L1 regularization.
@@ -125,84 +130,74 @@ preprocessor = ColumnTransformer(
 # DECISION: class_weight=None (no class weighting).
 # DECISION: max_iter=1000 (maximum optimization iterations).
 # DECISION: solver='saga'.
-model = make_pipeline(
-    preprocessor,
-    LogisticRegression(
-        C=1.0,
-        l1_ratio=1.0,
-        class_weight=None,
-        max_iter=1000,
-        solver="saga",
-        random_state=42,
-    ),
-)
-
-model.fit(X_train, y_train)
-
-
-# --------------------------------------------------
-# 6. Evaluation
-# --------------------------------------------------
-
-y_pred = model.predict(X_test)
-y_prob = model.predict_proba(X_test)[:, 1]
-
-print("Class distribution:")
-print("Train:")
-print(y_train.value_counts(normalize=True))
-print("Test:")
-print(y_test.value_counts(normalize=True))
-
-print("\nClassification report:")
-print(classification_report(y_test, y_pred))
-
-print(f"ROC-AUC: {roc_auc_score(y_test, y_prob):.4f}")
-print(f"PR-AUC:  {average_precision_score(y_test, y_prob):.4f}")
+def create_model():
+    return make_pipeline(
+        preprocessor,
+        LogisticRegression(
+            C=1.0,
+            #l1_ratio=1.0,
+            class_weight="balanced",
+            max_iter=1000,
+            solver="lbfgs",
+            random_state=42,
+        ),
+    )
 
 
-# Anzahl der Koeffizienten, die L1 auf null gesetzt hat
-coefficients = model.named_steps["logisticregression"].coef_[0]
+results = []
 
-n_total = len(coefficients)
-n_zero = (coefficients == 0).sum()
-n_nonzero = (coefficients != 0).sum()
+for fold, (train_idx, test_idx) in enumerate(cv.split(X, y), start=1):
 
-print(f"Total coefficients: {n_total}")
-print(f"Zero coefficients: {n_zero}")
-print(f"Non-zero coefficients: {n_nonzero}")
-print(f"Removed: {n_zero / n_total:.1%}")
+    X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
+    y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
 
+    model = create_model()
+    model.fit(X_train, y_train)
+
+    y_pred = model.predict(X_test)
+    y_prob = model.predict_proba(X_test)[:, 1]
+
+    results.append({
+        "fold": fold,
+        "precision": precision_score(y_test, y_pred, zero_division=0),
+        "recall": recall_score(y_test, y_pred, zero_division=0),
+        "f1": f1_score(y_test, y_pred, zero_division=0),
+        "accuracy": accuracy_score(y_test, y_pred),
+        "roc_auc": roc_auc_score(y_test, y_prob),
+        "pr_auc": average_precision_score(y_test, y_prob),
+        "n_positive": int(y_test.sum()),
+    })
 
 
 # --------------------------------------------------
-# 7. Feature importance
+# 6. Results
 # --------------------------------------------------
 
-# Aus trainierter Pipeline auslesen
-preprocessor = model.named_steps["columntransformer"]
-classifier = model.named_steps["logisticregression"]
+results_df = pd.DataFrame(results)
 
-# Feature-Namen nach Imputation und One-Hot-Encoding
-feature_names = preprocessor.get_feature_names_out()
+metrics = [
+    "precision",
+    "recall",
+    "f1",
+    "accuracy",
+    "roc_auc",
+    "pr_auc",
+]
 
-# Koeffizienten der logistischen Regression
-coefficients = classifier.coef_[0]
-
-# Zusammenführen
-coef_df = pd.DataFrame({
-    "feature": feature_names,
-    "coefficient": coefficients
+summary = pd.DataFrame({
+    "mean": results_df[metrics].mean(),
+    "std": results_df[metrics].std(),
 })
 
-# Nach Koeffizienten sortieren
-coef_df = coef_df.sort_values("coefficient")
+print("\nResults across 15 evaluation runs:")
+print(summary.to_string(float_format=lambda x: f"{x:.4f}"))
 
-zero_features = coef_df[coef_df["coefficient"] == 0]
-selected_features = coef_df[coef_df["coefficient"] != 0]
-selected_features = selected_features.sort_values("coefficient", ascending=False)
+print("\nPositive cases per test fold:")
+print(
+    f"Min: {results_df['n_positive'].min()}, "
+    f"Max: {results_df['n_positive'].max()}, "
+    f"Mean: {results_df['n_positive'].mean():.1f}"
+)
 
-#print("Removed:", len(zero_features))
-#print(zero_features.to_string(index=False))
-
-print("\nSelected:", len(selected_features))
-print(selected_features.to_string(index=False))
+print("\nIndividual fold results:")
+print(results_df.to_string(index=False, float_format=lambda x: f"{x:.4f}"))
