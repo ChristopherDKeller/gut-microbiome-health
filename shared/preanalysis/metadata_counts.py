@@ -4,18 +4,19 @@ from pathlib import Path
 import duckdb
 import pandas as pd
 
-import common.metadata_utils as utils
-from common.metadata_rules import RULES
+import shared.preanalysis.metadata_utils as utils
+from shared.preanalysis.metadata_rules import RULES
+from shared.paths import DB_PATH, SHARED_RESULTS
 
 
 # ============================================================
 # 1. Dateien und Einstellungen
 # ============================================================
 
-DB_FILE = Path("data/AGP-metadata.duckdb")
+DB_FILE = DB_PATH
 TABLE_NAME = "agp_metadata"
 
-RESULTS_DIR = Path("results/metadata_counts")
+RESULTS_DIR = SHARED_RESULTS / "metadata_counts"
 COUNTS_FILE = RESULTS_DIR / "metadata_category_counts.tsv"
 SUMMARY_FILE = RESULTS_DIR / "metadata_category_summary.tsv"
 OVERVIEW_FILE = RESULTS_DIR / "metadata_category_overview.txt"

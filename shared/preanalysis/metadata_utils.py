@@ -1,6 +1,6 @@
 import re
 
-from .metadata_rules import RULES
+from shared.preanalysis.metadata_rules import RULES
 
 
 TABLE_NAME = "agp_metadata"

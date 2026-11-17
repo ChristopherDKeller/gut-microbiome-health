@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gut-microbiome-health"
+version = "0.1.0"
+description = "ICW (microbial networks) and FP (disease prediction) on American Gut Project data"
+requires-python = ">=3.10"
+dependencies = ["duckdb", "pandas", "numpy", "scikit-learn"]
+
+[tool.setuptools.packages.find]
+include = ["shared*", "icw*", "fp*"]

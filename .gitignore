@@ -1,7 +1,10 @@
+data/
+results/
 *.txt
 *.tsv
 *.duckdb
 .vscode
 __pycache__
+*.egg-info/
 
 !requirements.txt

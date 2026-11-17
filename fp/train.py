@@ -1,4 +1,6 @@
 import duckdb
+
+from shared.paths import DB_PATH
 import pandas as pd
 
 from sklearn.model_selection import RepeatedStratifiedKFold
@@ -16,15 +18,15 @@ from sklearn.metrics import (
     average_precision_score,
 )
 
-from features import CATEGORICAL_FEATURES, FEATURES, NUMERIC_FEATURES, TARGET, GROUP_COL
-from preprocessing import clean_missing_values, clean_numeric_values
+from fp.features import CATEGORICAL_FEATURES, FEATURES, NUMERIC_FEATURES, TARGET, GROUP_COL
+from fp.preprocessing import clean_missing_values, clean_numeric_values
 
 
 # --------------------------------------------------
 # 1. Load data
 # --------------------------------------------------
 
-con = duckdb.connect("data/AGP-metadata.duckdb", read_only=True)
+con = duckdb.connect(str(DB_PATH), read_only=True)
 
 df = con.execute("""
     SELECT *

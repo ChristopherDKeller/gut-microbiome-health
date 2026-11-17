@@ -1,7 +1,9 @@
 
 import duckdb
 
-con = duckdb.connect("data/AGP-metadata.duckdb", read_only=True)
+from shared.paths import DB_PATH
+
+con = duckdb.connect(str(DB_PATH), read_only=True)
 
 queries = {
 #    "Depression feces sample count": """
