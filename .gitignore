@@ -6,5 +6,3 @@ results/
 .vscode
 __pycache__
 *.egg-info/
-
-!requirements.txt

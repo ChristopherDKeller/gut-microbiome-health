@@ -19,3 +19,8 @@ FP_RESULTS = RESULTS_DIR / "fp"
 
 # Qiita study 10317 = American Gut Project
 QIITA_STUDY_ID = 10317
+
+# Microbiome features (see docs/decisions.md, D2)
+REDBIOM_CONTEXT = "Deblur_2021.09-Illumina-16S-V4-150nt-ac8c0b"
+FEATURES_RAW_DIR = RAW_DIR / "features" / REDBIOM_CONTEXT
+REFERENCE_DIR = ROOT / "shared" / "reference"

@@ -20,5 +20,6 @@ pip install -e .
 
 1. `python shared/db/build_db.py` downloads the metadata (if missing) and builds `data/AGP.duckdb`
 2. Pre-analysis: `python shared/preanalysis/metadata_counts.py`, `python shared/preanalysis/metadata_missingness.py`
-3. ICW cohorts: `python icw/cohorts.py` writes `data/cohorts/icw/*.tsv`
-4. FP baseline model: `python fp/train.py`
+3. Feature-table: `python shared/features/fetch.py` downloads feature table for all stool samples
+4. ICW cohorts: `python icw/cohorts.py` writes `data/cohorts/icw/*.tsv`
+5. FP baseline model: `python fp/train.py`
