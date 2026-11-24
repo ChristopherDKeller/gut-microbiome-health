@@ -23,4 +23,5 @@ QIITA_STUDY_ID = 10317
 # Microbiome features (see docs/decisions.md, D2)
 REDBIOM_CONTEXT = "Deblur_2021.09-Illumina-16S-V4-150nt-ac8c0b"
 FEATURES_RAW_DIR = RAW_DIR / "features" / REDBIOM_CONTEXT
+FEATURES_DIR = DATA_DIR / "features"  # processed tables (shared/features/process.py)
 REFERENCE_DIR = ROOT / "shared" / "reference"
