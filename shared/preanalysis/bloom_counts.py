@@ -1,19 +1,18 @@
-"""Read counts of the 20 bloom ASVs (Amir et al. 2017) in the raw feature table.
+"""How many reads the bloom filter removes (Amir et al. 2017; decisions D3).
 
-Counts are summed over all sample-preps (no filtering), i.e. what bloom removal
-would take out. Bars are sorted by read count; blue = Amir et al.'s top 10.
-Y labels are the bloom rank in Amir et al. (order of the FASTA file).
+Uses the raw feature table (all sample-preps, no filtering), i.e. exactly what
+bloom removal takes out. Prints to the console only:
+- reads per bloom ASV (rank = order in Amir et al.'s list; top10 = their AGP recommendation)
+- share of all reads removed by the top 10 (pooled and per sample)
+- share held by ranks 11-20 (answers "why not all 20?")
 
-Output: results/shared/bloom_counts/bloom_counts.{tsv,png}
+Run:  python shared/preanalysis/bloom_counts.py
 """
 
 import biom
-import matplotlib.pyplot as plt
 import pandas as pd
 
-from shared.paths import FEATURES_RAW_DIR, REFERENCE_DIR, SHARED_RESULTS
-
-OUT_DIR = SHARED_RESULTS / "bloom_counts"
+from shared.paths import FEATURES_RAW_DIR, REFERENCE_DIR
 
 
 def read_sequences(path) -> list[str]:
@@ -27,26 +26,25 @@ if __name__ == "__main__":
 
     table = biom.load_table(str(FEATURES_RAW_DIR / "table.biom"))
     features = set(table.ids(axis="observation"))
+    total = table.sum()
 
     df = pd.DataFrame({"rank": range(1, len(all20) + 1), "sequence": all20})
     df["reads"] = [table.data(s, axis="observation", dense=False).sum() if s in features else 0
                    for s in df["sequence"]]
-    df["share_of_all_reads"] = df["reads"] / table.sum()
+    df["share_of_all_reads"] = df["reads"] / total
     df["top10"] = df["sequence"].isin(top10)
-    df = df.sort_values("reads", ascending=False)
 
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    df.to_csv(OUT_DIR / "bloom_counts.tsv", sep="\t", index=False)
+    print(df.sort_values("reads", ascending=False)[["rank", "reads", "share_of_all_reads", "top10"]]
+          .to_string(index=False, formatters={"reads": "{:,.0f}".format,
+                                              "share_of_all_reads": "{:.3%}".format}))
 
-    fig, ax = plt.subplots(figsize=(7, 6), dpi=150)
-    ax.barh([f"Rank {r}" for r in df["rank"]], df["reads"].clip(lower=1),
-            color=["#2a78d6" if t else "#b5b4ae" for t in df["top10"]])
-    ax.invert_yaxis()  # largest at the top
-    ax.set_xscale("log")
-    ax.set_xlabel("Total reads (log scale)")
-    ax.set_title(f"Bloom ASVs in {table.shape[1]:,} sample-preps (blue = top 10)", loc="left")
-    ax.spines[["top", "right"]].set_visible(False)
-    fig.tight_layout()
-    fig.savefig(OUT_DIR / "bloom_counts.png")
+    # Pooled = top-10 reads / all reads (dominated by deep samples);
+    # per sample = top-10 fraction of each sample-prep.
+    top10_reads = table.filter([s for s in top10 if s in features], axis="observation",
+                               inplace=False).sum(axis="sample")
+    depth = table.sum(axis="sample")
+    per_sample = pd.Series(top10_reads[depth > 0] / depth[depth > 0])
 
-    print(df[["rank", "reads", "share_of_all_reads", "top10"]].to_string(index=False))
+    print(f"\nTop-10 removal: {top10_reads.sum() / total:.2%} of all reads "
+          f"(per sample: mean {per_sample.mean():.2%}, median {per_sample.median():.2%})")
+    print(f"Ranks 11-20 (not removed): {df.loc[~df['top10'], 'reads'].sum() / total:.2%} of all reads")
